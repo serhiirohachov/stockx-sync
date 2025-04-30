@@ -1,105 +1,77 @@
 <?php
 namespace StockXSync;
 
-// Admin UI Hooks for WooCommerce
-add_action('woocommerce_product_after_variable_attributes', function($loop, $variation_data, $variation) {
-    $product_id = wp_get_post_parent_id($variation->ID);
-    $base_url = get_post_meta($product_id, '_stockx_product_base_url', true);
-    $size = $variation->get_attribute('pa_size');
-    $variation_url = ($base_url && $size) ? $base_url . '?catchallFilters=' . basename($base_url) . '&size=' . $size : get_post_meta($variation->ID, '_stockx_product_url', true);
+add_action('woocommerce_product_after_variable_attributes', function($loop, $variation_data, $variation_post) {
+    $variation = new \WC_Product_Variation($variation_post->ID);
+    $stockx_url = get_post_meta($variation->get_id(), '_stockx_product_url', true);
     ?>
-    <div class="stockx-sync-row">
-        <label><?php _e('StockX URL:', 'stockx-sync'); ?></label>
-        <input type="text" name="stockx_product_url_<?php echo esc_attr($variation->ID); ?>" value="<?php echo esc_attr($variation_url); ?>" style="width:100%;" readonly />
-        <button type="button" class="button stockx-sync-variation-url" data-id="<?php echo esc_attr($variation->ID); ?>">Sync URL</button>
-        <span class="stockx-sync-status" style="margin-top: 4px; display: block;"></span>
+    <div class="stockx-sync-row" style="margin-top: 15px;">
+        <label><?php _e('StockX URL (manual or auto)', 'stockx-sync'); ?></label>
+        <input type="text" name="stockx_product_url_<?php echo esc_attr($variation->get_id()); ?>" value="<?php echo esc_attr($stockx_url); ?>" style="width: 100%;" />
+        <button type="button" class="button stockx-sync-fetch-url" data-id="<?php echo esc_attr($variation->get_id()); ?>" style="margin-top: 5px;"><?php _e('Get from StockX', 'stockx-sync'); ?></button>
+        <div class="stockx-sync-status" style="margin-top: 5px; display: block; font-size: 13px;"></div>
     </div>
     <?php
 }, 10, 3);
 
-add_action('woocommerce_product_options_general_product_data', function () {
-    global $post;
-    $base_url = get_post_meta($post->ID, '_stockx_product_base_url', true);
-    ?>
-    <div class="options_group">
-        <p class="form-field">
-            <label for="stockx_base_url"><?php _e('StockX Base URL', 'stockx-sync'); ?></label>
-            <input type="text" id="stockx_base_url" value="<?php echo esc_attr($base_url); ?>" class="short" readonly>
-        </p>
-        <button type="button" class="button" id="get_stockx_url_single">Get StockX URL for this Product</button>
-    </div>
-    <script>
-    jQuery(function($){
-        $('#get_stockx_url_single').on('click', function(){
-            var data = {
-                action: 'stockx_get_url_single',
-                product_id: <?php echo (int) get_the_ID(); ?>
-            };
-            $.post(ajaxurl, data, function(response){
-                alert(response.data ? 'URL fetched: ' + response.data : 'Error: ' + response.message);
-                location.reload();
+// JS для кнопки отримання URL
+add_action('admin_footer', function () {
+    $screen = get_current_screen();
+    if ($screen && $screen->base === 'post' && $screen->post_type === 'product') {
+        ?>
+        <script>
+        jQuery(document).ready(function($){
+            $('.stockx-sync-fetch-url').on('click', function(){
+                const btn = $(this);
+                const id = btn.data('id');
+                const status = btn.closest('.stockx-sync-row').find('.stockx-sync-status');
+                status.text('Зачекайте…');
+
+                $.post(ajaxurl, {
+                    action: 'stockx_fetch_variation_url',
+                    variation_id: id
+                }, function(response){
+                    if (response.success) {
+                        btn.closest('.stockx-sync-row').find('input[type="text"]').val(response.data);
+                        status.text('✅ Отримано: ' + response.data);
+                    } else {
+                        status.text('❌ Помилка: ' + response.data);
+                    }
+                });
             });
         });
-
-        $('.stockx-sync-variation-url').on('click', function(){
-            const button = $(this);
-            const variationId = button.data('id');
-            button.prop('disabled', true).text('Syncing...');
-            $.post(ajaxurl, { action: 'stockx_sync_variation_url', variation_id: variationId }, function(response) {
-                if (response.success) {
-                    button.siblings('input').val(response.data);
-                    button.siblings('.stockx-sync-status').text('✅ URL synced');
-                } else {
-                    button.siblings('.stockx-sync-status').text('❌ ' + response.message);
-                }
-                button.prop('disabled', false).text('Sync URL');
-            });
-        });
-    });
-    </script>
-    <?php
-});
-
-add_action('wp_ajax_stockx_get_url_single', function () {
-    $product_id = absint($_POST['product_id']);
-    $product = wc_get_product($product_id);
-
-    if (! $product || ! $product->get_sku()) {
-        wp_send_json_error(['message' => 'No SKU found']);
-    }
-
-    try {
-        $client = new \StockXSync\SeleniumClient();
-        $slug = $client->getSlugBySku($product->get_sku());
-
-        if ($slug && str_starts_with($slug, '/')) {
-            $url = 'https://stockx.com' . $slug;
-            update_post_meta($product_id, '_stockx_product_base_url', $url);
-            wp_send_json_success($url);
-        } else {
-            wp_send_json_error(['message' => 'No valid slug returned']);
-        }
-    } catch (\Throwable $e) {
-        wp_send_json_error(['message' => $e->getMessage()]);
+        </script>
+        <?php
     }
 });
 
-add_action('wp_ajax_stockx_sync_variation_url', function () {
-    $variation_id = absint($_POST['variation_id']);
+// Ajax handler
+add_action('wp_ajax_stockx_fetch_variation_url', function() {
+    $variation_id = (int) ($_POST['variation_id'] ?? 0);
+    if (!$variation_id) wp_send_json_error('Invalid ID');
+
     $variation = wc_get_product($variation_id);
-    $parent_id = wp_get_post_parent_id($variation_id);
-    $base_url = get_post_meta($parent_id, '_stockx_product_base_url', true);
-    $size = $variation->get_attribute('pa_size');
+    if (!$variation || ! $variation->get_sku()) wp_send_json_error('No SKU');
 
-    if (! $variation || ! $variation->get_sku()) {
-        wp_send_json_error(['message' => 'Missing SKU']);
+    $fetcher = new \StockXSync\StockXFetcher();
+    $slug = $fetcher->getSlugBySku($variation->get_sku());
+
+    if ($slug && str_starts_with($slug, '/')) {
+        $url = 'https://stockx.com' . $slug;
+        update_post_meta($variation_id, '_stockx_product_url', $url);
+        wp_send_json_success($url);
     }
 
-    if (! $base_url || ! $size) {
-        wp_send_json_error(['message' => 'Base URL or size not set']);
-    }
-
-    $full_url = $base_url . '?catchallFilters=' . basename($base_url) . '&size=' . $size;
-    update_post_meta($variation_id, '_stockx_product_url', $full_url);
-    wp_send_json_success($full_url);
+    wp_send_json_error('Slug not found');
 });
+
+// Зберігання ручного URL
+add_action('woocommerce_save_product_variation', function($variation_id, $i) {
+    if (isset($_POST["stockx_product_url_{$variation_id}"])) {
+        update_post_meta(
+            $variation_id,
+            '_stockx_product_url',
+            sanitize_text_field($_POST["stockx_product_url_{$variation_id}"])
+        );
+    }
+}, 10, 2);
