@@ -20,9 +20,14 @@ class SeleniumClient {
             throw new \Exception("Browser binary not found at {$binary}");
         }
 
-        $tmp = tempnam(sys_get_temp_dir(), 'stockx_sync_');
-        $this->profileDir = $tmp . '_dir';
-        @unlink($tmp);
+        // Check if ChromeDriver is reachable
+        $check = @fsockopen(parse_url($this->host, PHP_URL_HOST), (int)parse_url($this->host, PHP_URL_PORT), $errno, $errstr, 2);
+        if (!is_resource($check)) {
+            throw new \Exception("Selenium/ChromeDriver not reachable at {$this->host}");
+        }
+        fclose($check);
+
+        $this->profileDir = sys_get_temp_dir() . '/stockx_sync_' . uniqid();
         mkdir($this->profileDir, 0700, true);
 
         $opts = new ChromeOptions();
@@ -43,8 +48,10 @@ class SeleniumClient {
             $this->driver->quit();
         }
         if (is_dir($this->profileDir)) {
-            array_map('unlink', glob("{$this->profileDir}/*"));
-            rmdir($this->profileDir);
+            foreach (glob("{$this->profileDir}/*") as $file) {
+                @unlink($file);
+            }
+            @rmdir($this->profileDir);
         }
     }
 
@@ -81,5 +88,21 @@ class SeleniumClient {
         }
 
         return null;
+    }
+
+    public function getSlugBySku(string $sku): ?string {
+        $url = "https://stockx.com/search?s=" . urlencode($sku);
+        $this->driver->get($url);
+        try {
+            $this->driver->wait(15, 200)->until(
+                WebDriverExpectedCondition::presenceOfElementLocated(
+                    WebDriverBy::cssSelector('a[data-testid="productTile-ProductSwitcherLink"]')
+                )
+            );
+            $link = $this->driver->findElement(WebDriverBy::cssSelector('a[data-testid="productTile-ProductSwitcherLink"]'));
+            return $link->getAttribute('href');
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 }
