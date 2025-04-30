@@ -9,11 +9,8 @@ add_action('woocommerce_product_after_variable_attributes', function($loop, $var
 
     if (! $size) {
         $attributes = $variation->get_attributes();
-        foreach ($attributes as $key => $val) {
-            if (str_contains($key, 'size')) {
-                $size = $val;
-                break;
-            }
+        if (!empty($attributes)) {
+            $size = reset($attributes); // use the first attribute value
         }
     }
 
