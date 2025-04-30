@@ -53,6 +53,35 @@ class CLI {
         }
     }
     
+    public static function sync_all_urls( $args, $assoc_args ) {
+        $products = wc_get_products(['type' => 'variable', 'limit' => -1]);
+        $total = 0;
+    
+        foreach ($products as $product) {
+            foreach ($product->get_children() as $variation_id) {
+                $variation = wc_get_product($variation_id);
+                $sku = $variation->get_sku();
+                if ($sku) {
+                    try {
+                        $client = new \StockXSync\SeleniumClient();
+                        $slug = $client->getSlugBySku($sku);
+                        if ($slug && str_starts_with($slug, '/')) {
+                            $url = "https://stockx.com" . $slug;
+                            update_post_meta($variation_id, '_stockx_product_url', $url);
+                            \WP_CLI::log("✅ $sku → $url");
+                            $total++;
+                        }
+                    } catch (\Throwable $e) {
+                        \WP_CLI::warning("⚠️  $sku → " . $e->getMessage());
+                    }
+                }
+            }
+        }
+    
+        \WP_CLI::success("🎯 Total updated: $total variations.");
+    }
+    
+    
     
     
 }

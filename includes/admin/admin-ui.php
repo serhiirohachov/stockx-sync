@@ -75,7 +75,7 @@ add_action('admin_menu', function () {
                         if(progress >= 90) progress = 90;
                         $('#stockx-progress-bar').css('width', progress + '%');
                         $('#stockx-progress-text').text('Зачекайте… ' + progress + '%');
-                    }, 400);
+                    }, 400);л
 
                     $.post(ajaxurl, { action: 'stockx_get_urls_all' }, function(response){
                         clearInterval(interval);
