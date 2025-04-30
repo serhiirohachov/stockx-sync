@@ -32,14 +32,6 @@ require_once __DIR__ . '/includes/classes/class-base-selenium.php';
 require_once __DIR__ . '/includes/classes/class-selenium-client.php';
 
 
-if (defined('WP_CLI') && WP_CLI) {
-    require_once __DIR__ . '/includes/classes/class-cli.php';
-    \StockXSync\CLI::init();
-}
-
-
-
-
 register_activation_hook( __FILE__, [ 'StockXSync\\Plugin', 'activate' ] );
 register_deactivation_hook( __FILE__, [ 'StockXSync\\Plugin', 'deactivate' ] );
 
@@ -50,3 +42,8 @@ register_activation_hook( __FILE__, function() {
 });
 
 add_action( 'plugins_loaded', [ 'StockXSync\\Plugin', 'init' ] );
+
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+    require_once __DIR__ . '/includes/cli/class-cli.php';
+    \StockXSync\CLI::init();
+}
