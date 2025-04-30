@@ -1,26 +1,37 @@
 <?php
 namespace StockXSync;
 
-// Admin UI Hooks for WooCommerce
+// Size mapping logic (trimmed to reduce length here but should be defined globally)
+include_once __DIR__ . '/size-mappings.php'; // contains $sizeMappings
+
 add_action('woocommerce_product_after_variable_attributes', function($loop, $variation_data, $variation) {
     $product_id = wp_get_post_parent_id($variation->ID);
     $base_url = get_post_meta($product_id, '_stockx_product_base_url', true);
 
     $size = '';
+    $us_size = '';
+    $attribute_key = '';
+
     if (method_exists($variation, 'get_attributes')) {
         $attributes = $variation->get_attributes();
-        if (!empty($attributes)) {
-            foreach ($attributes as $attr => $value) {
-                if (!empty($value)) {
-                    $size = $value;
-                    break;
-                }
+        foreach ($attributes as $attr => $value) {
+            if (!empty($value)) {
+                $size = $value;
+                $attribute_key = $attr;
+                break;
             }
         }
     }
 
-    if ($base_url && $size) {
-        $variation_url = $base_url . '?catchallFilters=' . basename($base_url) . '&size=' . urlencode($size);
+    // Resolve size mapping
+    $mapped_size = $size;
+    if (isset($sizeMappings[$attribute_key][$size]['US'])) {
+        $mapped_size = trim(str_replace('US', '', $sizeMappings[$attribute_key][$size]['US']));
+    }
+
+    if ($base_url && $mapped_size) {
+        $slug = basename(parse_url($base_url, PHP_URL_PATH));
+        $variation_url = 'https://stockx.com/' . $slug . '?catchallFilters=' . $slug . '&size=' . urlencode($mapped_size);
     } elseif ($base_url) {
         $variation_url = $base_url;
     } else {
@@ -35,6 +46,14 @@ add_action('woocommerce_product_after_variable_attributes', function($loop, $var
         <button type="button" class="button stockx-sync-variation-price" data-id="<?php echo esc_attr($variation->ID); ?>">Sync Price</button>
         <span class="stockx-sync-status" style="margin-top: 4px; display: block;"></span>
     </div>
+    <?php
+}, 10, 3);
+
+add_action('woocommerce_product_options_general_product_data', function () {
+    echo '<div class="options_group">';
+    echo '<button type="button" class="button" id="stockx-sync-all-variations">Sync All StockX Variations</button>';
+    echo '</div>';
+    ?>
     <script>
     jQuery(function($){
         $('.stockx-sync-variation-price').off('click').on('click', function(){
@@ -55,22 +74,23 @@ add_action('woocommerce_product_after_variable_attributes', function($loop, $var
                 btn.prop('disabled', false);
             });
         });
+
+        $('#stockx-sync-all-variations').on('click', function(){
+            $('.stockx-sync-variation-price').each(function(){
+                $(this).click();
+            });
+        });
     });
     </script>
     <?php
-}, 10, 3);
+});
 
-// Update WooCommerce variation price via AJAX
 add_action('wp_ajax_stockx_sync_variation_price', function () {
     $variation_id = absint($_POST['variation_id'] ?? 0);
-    if (! $variation_id) {
-        wp_send_json_error('Invalid variation ID');
-    }
+    if (! $variation_id) wp_send_json_error('Invalid variation ID');
 
     $variation = wc_get_product($variation_id);
-    if (! $variation || ! $variation->get_sku()) {
-        wp_send_json_error('No SKU on variation');
-    }
+    if (! $variation || ! $variation->get_sku()) wp_send_json_error('No SKU on variation');
 
     $sku = $variation->get_sku();
     $parent_id = wp_get_post_parent_id($variation_id);
@@ -80,23 +100,28 @@ add_action('wp_ajax_stockx_sync_variation_price', function () {
 
     try {
         $size = '';
+        $attribute_key = '';
         foreach ($variation->get_attributes() as $attr => $value) {
             if (!empty($value)) {
                 $size = $value;
+                $attribute_key = $attr;
                 break;
             }
         }
 
-        $price = $client->get_price($sku, $size);
+        $slug = basename(parse_url($base_url, PHP_URL_PATH));
+        $mapped_size = $size;
+        if (isset($sizeMappings[$attribute_key][$size]['US'])) {
+            $mapped_size = trim(str_replace('US', '', $sizeMappings[$attribute_key][$size]['US']));
+        }
+
+        $price = $client->get_price($slug, $mapped_size);
         if ($price) {
             $variation->set_price($price);
             $variation->set_regular_price($price);
             $variation->save();
 
-            $variation_url = ($base_url && $size)
-                ? $base_url . '?catchallFilters=' . basename($base_url) . '&size=' . urlencode($size)
-                : 'https://stockx.com/' . $sku . '?catchallFilters=' . $sku . '&size=' . urlencode($size);
-
+            $variation_url = 'https://stockx.com/' . $slug . '?catchallFilters=' . $slug . '&size=' . urlencode($mapped_size);
             update_post_meta($variation_id, '_stockx_product_url', $variation_url);
             wp_send_json_success($price);
         } else {
@@ -106,6 +131,8 @@ add_action('wp_ajax_stockx_sync_variation_price', function () {
         wp_send_json_error($e->getMessage());
     }
 });
+
+
 
 
 add_action('woocommerce_product_options_general_product_data', function () {
