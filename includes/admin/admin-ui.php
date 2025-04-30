@@ -39,6 +39,7 @@ add_action('woocommerce_product_options_general_product_data', function () {
             <input type="text" id="stockx_base_url" value="<?php echo esc_attr($base_url); ?>" class="short">
         </p>
         <button type="button" class="button" id="get_stockx_url_single">Get StockX URL for this Product</button>
+        <button type="button" class="button button-primary" id="stockx_sync_all">Sync All URLs & Prices</button>
     </div>
     <script>
     jQuery(function($){
@@ -79,6 +80,19 @@ add_action('woocommerce_product_options_general_product_data', function () {
                     button.siblings('.stockx-sync-status').text('❌ ' + response.message);
                 }
                 button.prop('disabled', false).text('Sync Price');
+            });
+        });
+
+        $('#stockx_sync_all').on('click', function(){
+            var btn = $(this);
+            btn.prop('disabled', true).text('Syncing all...');
+            $.post(ajaxurl, {
+                action: 'stockx_sync_all_variation_data',
+                product_id: <?php echo (int) get_the_ID(); ?>
+            }, function(response){
+                alert(response.success ? 'All synced: ' + response.data : 'Error: ' + response.message);
+                btn.prop('disabled', false).text('Sync All URLs & Prices');
+                location.reload();
             });
         });
     });
@@ -177,4 +191,27 @@ add_action('wp_ajax_stockx_sync_variation_price', function () {
     } catch (\Throwable $e) {
         wp_send_json_error(['message' => $e->getMessage()]);
     }
+});
+
+add_action('wp_ajax_stockx_sync_all_variation_data', function () {
+    $product_id = absint($_POST['product_id']);
+    $product = wc_get_product($product_id);
+
+    if (! $product || ! $product->is_type('variable')) {
+        wp_send_json_error(['message' => 'Invalid variable product']);
+    }
+
+    $count = 0;
+    foreach ($product->get_children() as $variation_id) {
+        $_POST['variation_id'] = $variation_id;
+        ob_start();
+        do_action('wp_ajax_stockx_sync_variation_url');
+        ob_end_clean();
+
+        ob_start();
+        do_action('wp_ajax_stockx_sync_variation_price');
+        ob_end_clean();
+        $count++;
+    }
+    wp_send_json_success($count);
 });
