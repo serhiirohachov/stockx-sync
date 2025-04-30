@@ -7,8 +7,7 @@ class CLI {
         \WP_CLI::add_command( 'stockx-sync sync-all', [ __CLASS__, 'sync_all' ] );
         \WP_CLI::add_command( 'stockx-sync sync-by-sku', [ __CLASS__, 'sync_by_sku' ] );
         \WP_CLI::add_command( 'stockx-sync get-url-by-sku', [ __CLASS__, 'get_url_by_sku' ]);
-
-        
+    
     }
 
     public static function get_price( $args ) {
