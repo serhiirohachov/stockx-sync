@@ -28,10 +28,69 @@ add_action('woocommerce_product_after_variable_attributes', function($loop, $var
         <button type="button" class="button stockx-sync-variation-price" data-id="<?php echo esc_attr($variation->ID); ?>">Sync Price</button>
         <span class="stockx-sync-status" style="margin-top: 4px; display: block;"></span>
     </div>
+    <script>
+    jQuery(function($){
+        $('.stockx-sync-variation-price').off('click').on('click', function(){
+            const btn = $(this);
+            const vid = btn.data('id');
+            const status = btn.siblings('.stockx-sync-status');
+            status.text('⏳ Syncing price…');
+            btn.prop('disabled', true);
+            $.post(ajaxurl, {
+                action: 'stockx_sync_variation_price',
+                variation_id: vid
+            }, function(response){
+                if (response.success) {
+                    status.text('✅ ' + response.data + ' UAH');
+                } else {
+                    status.text('❌ ' + response.data);
+                }
+                btn.prop('disabled', false);
+            });
+        });
+    });
+    </script>
     <?php
 }, 10, 3);
 
-// ...rest of the code remains unchanged...
+// Update WooCommerce variation price via AJAX
+add_action('wp_ajax_stockx_sync_variation_price', function () {
+    $variation_id = absint($_POST['variation_id'] ?? 0);
+    if (! $variation_id) {
+        wp_send_json_error('Invalid variation ID');
+    }
+
+    $variation = wc_get_product($variation_id);
+    if (! $variation || ! $variation->get_sku()) {
+        wp_send_json_error('No SKU on variation');
+    }
+
+    $sku = $variation->get_sku();
+    $client = new SeleniumClient();
+
+    try {
+        $size = '';
+        foreach ($variation->get_attributes() as $attr => $value) {
+            if (!empty($value)) {
+                $size = $value;
+                break;
+            }
+        }
+
+        $price = $client->get_price($sku, $size);
+        if ($price) {
+            $variation->set_price($price);
+            $variation->set_regular_price($price);
+            $variation->save();
+            wp_send_json_success($price);
+        } else {
+            wp_send_json_error('Could not get price');
+        }
+    } catch (\Throwable $e) {
+        wp_send_json_error($e->getMessage());
+    }
+});
+
 
 
 add_action('woocommerce_product_options_general_product_data', function () {
