@@ -20,9 +20,7 @@ class SeleniumClient {
             throw new \Exception("Browser binary not found at {$binary}");
         }
 
-        $tmp = tempnam(sys_get_temp_dir(), 'stockx_sync_');
-        $this->profileDir = $tmp . '_dir';
-        @unlink($tmp);
+        $this->profileDir = sys_get_temp_dir() . '/stockx_sync_' . uniqid();
         mkdir($this->profileDir, 0700, true);
 
         $opts = new ChromeOptions();
@@ -43,8 +41,10 @@ class SeleniumClient {
             $this->driver->quit();
         }
         if (is_dir($this->profileDir)) {
-            array_map('unlink', glob("{$this->profileDir}/*"));
-            rmdir($this->profileDir);
+            foreach (glob("{$this->profileDir}/*") as $file) {
+                @unlink($file);
+            }
+            @rmdir($this->profileDir);
         }
     }
 

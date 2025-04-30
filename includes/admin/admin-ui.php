@@ -2,6 +2,16 @@
 namespace StockXSync;
 
 add_action('woocommerce_product_after_variable_attributes', function($loop, $variation_data, $variation) {
+    <div class="stockx-sync-row">
+        <button type="button" class="button stockx-sync-variation" data-id="<?php echo esc_attr($variation->ID); ?>">
+            <?php esc_html_e('Sync StockX Price', 'stockx-sync'); ?>
+        </button>
+        <div class="stockx-progress-variation" style="width: 100%; background: #f1f1f1; border: 1px solid #ccc; margin-top: 5px; display: none;">
+            <div class="stockx-bar" style="width: 0%; height: 15px; background: #2271b1;"></div>
+        </div>
+        <span class="stockx-sync-status" style="margin-top: 4px; display: block;"></span>
+    </div>
+    
     $stockx_url = get_post_meta($variation->ID, '_stockx_product_url', true);
     ?>
     <div>
@@ -19,6 +29,33 @@ add_action('woocommerce_product_options_general_product_data', function () {
     ?>
     <script>
     jQuery(document).ready(function($){
+        $('.stockx-sync-variation').off('click').on('click', function(){
+            var btn = $(this);
+            var vid = btn.data('id');
+            var row = btn.closest('.stockx-sync-row');
+            var status = row.find('.stockx-sync-status');
+            var bar = row.find('.stockx-progress-variation');
+            var barfill = row.find('.stockx-bar');
+            status.text('');
+            bar.show();
+            var progress = 0;
+            barfill.css('width', '0%');
+            var interval = setInterval(function(){
+                progress += 50;
+                if(progress >= 90) progress = 90;
+                barfill.css('width', progress + '%');
+            }, 400);
+
+            $.post(ajaxurl, {
+                action: 'stockx_sync_variation_price',
+                variation_id: vid
+            }, function(response){
+                clearInterval(interval);
+                barfill.css('width', '100%');
+                status.text(response.success ? 'Оновлено: ' + response.data : 'Помилка: ' + response.data);
+            });
+        });
+    });
         $('#get_stockx_url_single').on('click', function(){
             var data = {
                 action: 'stockx_get_url_single',
@@ -44,15 +81,60 @@ add_action('admin_menu', function () {
             ?>
             <div class="wrap">
                 <h1><?php _e('Get StockX URLs for All Products', 'stockx-sync'); ?></h1>
-                <button id="get_all_stockx_urls" class="button button-primary"><?php _e('Fetch Now', 'stockx-sync'); ?></button>
+                <p><?php _e('Ця дія отримає посилання на всі варіації продуктів зі StockX за допомогою Selenium. Зачекайте до завершення.', 'stockx-sync'); ?></p>
+    <button id="get_all_stockx_urls" class="button button-primary"><?php _e('Fetch Now', 'stockx-sync'); ?></button>
+    <div id="stockx-progress-container" style="width: 100%; background: #f1f1f1; border: 1px solid #ccc; margin-top: 10px; display: none;">
+        <div id="stockx-progress-bar" style="width: 0%; height: 20px; background: #2271b1;"></div>
+    </div>
+    <div id="stockx-progress-text" style="margin-top: 5px;"></div>
                 <div id="stockx-fetch-status"></div>
             </div>
             <script>
             jQuery(document).ready(function($){
+        $('.stockx-sync-variation').off('click').on('click', function(){
+            var btn = $(this);
+            var vid = btn.data('id');
+            var row = btn.closest('.stockx-sync-row');
+            var status = row.find('.stockx-sync-status');
+            var bar = row.find('.stockx-progress-variation');
+            var barfill = row.find('.stockx-bar');
+            status.text('');
+            bar.show();
+            var progress = 0;
+            barfill.css('width', '0%');
+            var interval = setInterval(function(){
+                progress += 50;
+                if(progress >= 90) progress = 90;
+                barfill.css('width', progress + '%');
+            }, 400);
+
+            $.post(ajaxurl, {
+                action: 'stockx_sync_variation_price',
+                variation_id: vid
+            }, function(response){
+                clearInterval(interval);
+                barfill.css('width', '100%');
+                status.text(response.success ? 'Оновлено: ' + response.data : 'Помилка: ' + response.data);
+            });
+        });
+    });
                 $('#get_all_stockx_urls').on('click', function(){
                     var btn = $(this);
                     btn.prop('disabled', true).text('Fetching…');
-                    $.post(ajaxurl, { action: 'stockx_get_urls_all' }, function(response){
+                    
+        $('#stockx-progress-container').show();
+        var progress = 0;
+        var interval = setInterval(function(){
+            progress += 10;
+            if(progress >= 90) progress = 90;
+            $('#stockx-progress-bar').css('width', progress + '%');
+            $('#stockx-progress-text').text('Зачекайте, обробка триває… ' + progress + '%');
+        }, 500);
+        $.post(ajaxurl, { action: 'stockx_get_urls_all' }, function(response){
+            clearInterval(interval);
+            $('#stockx-progress-bar').css('width', '100%');
+            $('#stockx-progress-text').text(response.success ? 'Готово: оновлено ' + response.data + ' варіацій.' : 'Помилка: ' + response.message);
+
                         $('#stockx-fetch-status').text(response.success ? 'Done: ' + response.data + ' updated' : 'Error: ' + response.message);
                         btn.prop('disabled', false).text('Fetch Now');
                     });
@@ -62,7 +144,6 @@ add_action('admin_menu', function () {
             <?php
         }
 );
-});
 
 add_action('wp_ajax_stockx_get_url_single', function() {
     $product_id = (int) ($_POST['product_id'] ?? 0);
@@ -107,3 +188,49 @@ add_action('wp_ajax_stockx_get_urls_all', function() {
     }
     wp_send_json_success($count);
 });
+
+
+    <div class="stockx-sync-row">
+        <button type="button" class="button stockx-sync-variation" data-id="<?php echo esc_attr($variation->ID); ?>">
+            <?php esc_html_e('Sync StockX Price', 'stockx-sync'); ?>
+        </button>
+        <div class="stockx-progress-container" style="width: 100%; background: #f1f1f1; border: 1px solid #ccc; margin-top: 5px; display: none;">
+            <div class="stockx-progress-bar" style="width: 0%; height: 12px; background: #46b450;"></div>
+        </div>
+        <span class="stockx-sync-status" style="margin-top: 5px; display:block;"></span>
+    </div>
+    <script>
+    jQuery(document).ready(function($){
+        $('.stockx-sync-variation').off('click').on('click', function(){
+            var btn = $(this);
+            var vid = btn.data('id');
+            var container = btn.closest('.stockx-sync-row');
+            var progressBar = container.find('.stockx-progress-bar');
+            var progressWrap = container.find('.stockx-progress-container');
+            var status = container.find('.stockx-sync-status');
+            status.text('Синхронізація…');
+            progressWrap.show();
+            progressBar.css('width', '0%');
+
+            let progress = 0;
+            const interval = setInterval(function(){
+                progress += 20;
+                if (progress >= 90) progress = 90;
+                progressBar.css('width', progress + '%');
+            }, 300);
+
+            $.post(ajaxurl, {
+                action: 'stockx_sync_variation_price',
+                variation_id: vid
+            }, function(response){
+                clearInterval(interval);
+                progressBar.css('width', '100%');
+                if (response.success) {
+                    status.text('Оновлено: ' + response.data + ' грн');
+                } else {
+                    status.text('Помилка: ' + response.data);
+                }
+            });
+        });
+    });
+    </script>
