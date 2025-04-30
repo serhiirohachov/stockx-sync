@@ -28,6 +28,9 @@ require_once __DIR__ . '/includes/classes/class-selenium-client.php';
 require_once __DIR__ . '/includes/classes/class-stockx-fetcher.php';
 require_once __DIR__ . '/includes/cli/class-cli.php';
 require_once __DIR__ . '/includes/admin/admin-ui.php';
+require_once plugin_dir_path(__FILE__) . 'includes/classes/class-base-selenium.php';
+require_once plugin_dir_path(__FILE__) . 'includes/classes/class-selenium-client.php';
+
 
 if (defined('WP_CLI') && WP_CLI) {
     require_once __DIR__ . '/includes/cli/class-cli.php';
