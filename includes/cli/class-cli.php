@@ -6,21 +6,8 @@ class CLI {
         \WP_CLI::add_command( 'stockx-sync get-price', [ __CLASS__, 'get_price' ] );
         \WP_CLI::add_command( 'stockx-sync sync-all', [ __CLASS__, 'sync_all' ] );
         \WP_CLI::add_command( 'stockx-sync sync-by-sku', [ __CLASS__, 'sync_by_sku' ] );
-        \WP_CLI::add_command('stockx-slug', function($args) {
-            if (empty($args[0])) {
-                \WP_CLI::error("SKU is required. Usage: wp stockx-slug <SKU>");
-            }
-        
-            $sku = $args[0];
-            $fetcher = new StockXFetcher();
-            $slug = $fetcher->getSlugBySku($sku);
-        
-            if ($slug) {
-                \WP_CLI::success("Found StockX URL for {$sku}: {$slug}");
-            } else {
-                \WP_CLI::error("Failed to find StockX URL for {$sku}");
-            }
-        });
+        \WP_CLI::add_command( 'stockx-sync get-url-by-sku', [ __CLASS__, 'get_url_by_sku' ]);
+
         
     }
 
@@ -44,6 +31,29 @@ class CLI {
         // Implementation similar to plugin file...
         \WP_CLI::log("sync_by_sku logic goes here.");
     }
+
+    public static function get_url_by_sku( $args, $assoc_args ) {
+        if (empty($args[0])) {
+            \WP_CLI::error("SKU is required. Usage: wp stockx-sync get-url-by-sku <SKU>");
+        }
+    
+        $sku = $args[0];
+    
+        try {
+            $client = new SeleniumClient();
+            $slug = $client->getSlugBySku($sku);
+    
+            if ($slug) {
+                \WP_CLI::success("Found StockX URL for {$sku}: https://stockx.com{$slug}");
+            } else {
+                \WP_CLI::error("Failed to find StockX URL for {$sku}");
+            }
+    
+        } catch (\Throwable $e) {
+            \WP_CLI::error('Error: ' . $e->getMessage());
+        }
+    }
+    
     
     
 }
