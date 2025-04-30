@@ -7,7 +7,9 @@ class CLI {
         \WP_CLI::add_command( 'stockx-sync sync-all', [ __CLASS__, 'sync_all' ] );
         \WP_CLI::add_command( 'stockx-sync sync-by-sku', [ __CLASS__, 'sync_by_sku' ] );
         \WP_CLI::add_command( 'stockx-sync get-url-by-sku', [ __CLASS__, 'get_url_by_sku' ]);
-    
+        \WP_CLI::add_command( 'stockx-sync sync-all-urls', [ __CLASS__, 'sync_all_urls' ] );
+        \WP_CLI::add_command( 'stockx-sync sync-missing-urls', [ __CLASS__, 'sync_missing_urls' ] );
+
     }
 
     public static function get_price( $args ) {
@@ -52,8 +54,41 @@ class CLI {
             \WP_CLI::error('Error: ' . $e->getMessage());
         }
     }
-    
+
     public static function sync_all_urls( $args, $assoc_args ) {
+        $products = wc_get_products(['type' => 'variable', 'limit' => -1]);
+        $total = 0;
+
+        foreach ($products as $product) {
+            try {
+                $sku = $product->get_sku();
+                $client = new SeleniumClient();
+                $slug = $client->getSlugBySku($sku);
+
+                if ($slug && str_starts_with($slug, '/')) {
+                    $base_url = 'https://stockx.com' . $slug;
+                    update_post_meta($product->get_id(), '_stockx_product_base_url', $base_url);
+
+                    foreach ($product->get_children() as $variation_id) {
+                        $variation = wc_get_product($variation_id);
+                        $size = $variation->get_attribute('pa_size');
+                        if ($size) {
+                            $variation_url = $base_url . '?catchallFilters=' . basename($base_url) . '&size=' . $size;
+                            update_post_meta($variation_id, '_stockx_product_url', $variation_url);
+                            \WP_CLI::log("✅ {$sku} ({$size}) → {$variation_url}");
+                            $total++;
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                \WP_CLI::warning("⚠️  {$sku} → " . $e->getMessage());
+            }
+        }
+
+        \WP_CLI::success("🎯 Total updated: {$total} variations.");
+    }
+    
+    public static function sync_missing_urls( $args, $assoc_args ) {
         $products = wc_get_products(['type' => 'variable', 'limit' => -1]);
         $total = 0;
     
@@ -61,7 +96,9 @@ class CLI {
             foreach ($product->get_children() as $variation_id) {
                 $variation = wc_get_product($variation_id);
                 $sku = $variation->get_sku();
-                if ($sku) {
+                $existing = get_post_meta($variation_id, '_stockx_product_url', true);
+    
+                if ($sku && empty($existing)) {
                     try {
                         $client = new \StockXSync\SeleniumClient();
                         $slug = $client->getSlugBySku($sku);
@@ -78,9 +115,8 @@ class CLI {
             }
         }
     
-        \WP_CLI::success("🎯 Total updated: $total variations.");
+        \WP_CLI::success("🔎 Missing URLs updated: $total");
     }
-    
     
     
     
