@@ -29,9 +29,12 @@ require_once __DIR__ . '/includes/classes/class-stockx-fetcher.php';
 require_once __DIR__ . '/includes/cli/class-cli.php';
 require_once __DIR__ . '/includes/admin/admin-ui.php';
 
-if ( defined( 'WP_CLI' ) && WP_CLI ) {
-    \StockXSync\CLI::init();
+if (defined('WP_CLI') && WP_CLI) {
+    require_once __DIR__ . '/includes/cli/class-cli.php';
+    \StockXSync\CLI::register();
 }
+
+
 
 register_activation_hook( __FILE__, [ 'StockXSync\\Plugin', 'activate' ] );
 register_deactivation_hook( __FILE__, [ 'StockXSync\\Plugin', 'deactivate' ] );

@@ -1,40 +1,48 @@
 <?php
 namespace StockXSync;
 
-use Facebook\WebDriver\Chrome\ChromeOptions;
-use Facebook\WebDriver\Remote\DesiredCapabilities;
+
 use Facebook\WebDriver\Remote\RemoteWebDriver;
+use Facebook\WebDriver\Remote\DesiredCapabilities;
+use Facebook\WebDriver\Chrome\ChromeOptions;
 use Facebook\WebDriver\WebDriverBy;
 
 class StockXFetcher {
     public function getSlugBySku($sku) {
-        $host = 'http://localhost:9515';
-
+        $tmpUserDir = '/tmp/chrome-profile-' . uniqid();
+    
         $options = new ChromeOptions();
         $options->addArguments([
+            '--headless',
             '--no-sandbox',
-            '--disable-dev-shm-usage',
             '--disable-gpu',
-            '--window-size=1200,800',
-            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+            '--disable-dev-shm-usage',
+            '--user-data-dir=' . $tmpUserDir
         ]);
-
+    
         $capabilities = DesiredCapabilities::chrome();
-        $capabilities->setCapability('goog:chromeOptions', $options);
-
-        $driver = RemoteWebDriver::create($host, $capabilities);
-        $driver->get("https://stockx.com/search?s=" . urlencode($sku));
-
+        $capabilities->setCapability(ChromeOptions::CAPABILITY, $options);
+    
         try {
-            $link = $driver->findElement(
-                WebDriverBy::cssSelector('a[data-testid="productTile-ProductSwitcherLink"]')
-            );
-            $href = $link->getAttribute('href');
-        } catch (\Exception $e) {
-            $href = 'Not found';
+            $driver = RemoteWebDriver::create('http://localhost:9515', $capabilities);
+            $driver->get('https://stockx.com/search?s=' . urlencode($sku));
+    
+            sleep(2); // час на завантаження сторінки
+    
+            $link = $driver->findElement(WebDriverBy::cssSelector('a[data-testid="productTile-ProductSwitcherLink"]'))->getAttribute('href');
+    
+            $driver->quit();
+            return 'https://stockx.com' . $link;
+    
+        } catch (\Throwable $e) {
+            error_log('[StockXFetcher] Error: ' . $e->getMessage());
+            return false;
+    
+        } finally {
+            if (is_dir($tmpUserDir)) {
+                shell_exec('rm -rf ' . escapeshellarg($tmpUserDir));
+            }
         }
-
-        $driver->quit();
-        return $href;
     }
+    
 }
