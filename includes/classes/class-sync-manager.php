@@ -43,9 +43,6 @@ class SyncManager {
             $size = reset($attrs);
             $price = (new SeleniumClient())->get_price($style, $size);
             if ($price !== null && $price != $variation->get_price()) {
-                $slug = rawurlencode($style);
-                $stockx_url = "https://stockx.com/{$slug}";
-                update_post_meta($variation->get_id(), '_stockx_product_url', $stockx_url);
                 $variation->set_price($price);
                 $variation->save();
                 return 1;
