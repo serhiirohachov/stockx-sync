@@ -117,6 +117,15 @@ add_action('wp_ajax_stockx_sync_all_variations', function () {
     foreach ($children as $variation_id) {
         $variation = wc_get_product($variation_id);
         $size = $variation->get_attribute('pa_size');
+        if (! $size) {
+            $attributes = $variation->get_attributes();
+            foreach ($attributes as $key => $val) {
+                if (str_contains($key, 'size')) {
+                    $size = $val;
+                    break;
+                }
+            }
+        }
         if ($base_url && $size) {
             $full_url = $base_url . '?catchallFilters=' . basename($base_url) . '&size=' . $size;
             update_post_meta($variation_id, '_stockx_product_url', $full_url);
