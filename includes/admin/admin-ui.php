@@ -19,7 +19,14 @@ add_action('woocommerce_product_after_variable_attributes', function($loop, $var
         }
     }
 
-    $variation_url = ($base_url && $size) ? $base_url . '?catchallFilters=' . basename($base_url) . '&size=' . urlencode($size) : get_post_meta($variation->ID, '_stockx_product_url', true);
+    if ($base_url && $size) {
+        $variation_url = $base_url . '?catchallFilters=' . basename($base_url) . '&size=' . urlencode($size);
+    } elseif ($base_url) {
+        $variation_url = $base_url;
+    } else {
+        $variation_url = get_post_meta($variation->ID, '_stockx_product_url', true);
+    }
+
     ?>
     <div class="stockx-sync-row">
         <label><?php _e('StockX URL:', 'stockx-sync'); ?></label>
@@ -66,6 +73,9 @@ add_action('wp_ajax_stockx_sync_variation_price', function () {
     }
 
     $sku = $variation->get_sku();
+    $parent_id = wp_get_post_parent_id($variation_id);
+    $base_url = get_post_meta($parent_id, '_stockx_product_base_url', true);
+
     $client = new SeleniumClient();
 
     try {
@@ -82,6 +92,12 @@ add_action('wp_ajax_stockx_sync_variation_price', function () {
             $variation->set_price($price);
             $variation->set_regular_price($price);
             $variation->save();
+
+            $variation_url = ($base_url && $size)
+                ? $base_url . '?catchallFilters=' . basename($base_url) . '&size=' . urlencode($size)
+                : 'https://stockx.com/' . $sku . '?catchallFilters=' . $sku . '&size=' . urlencode($size);
+
+            update_post_meta($variation_id, '_stockx_product_url', $variation_url);
             wp_send_json_success($price);
         } else {
             wp_send_json_error('Could not get price');
@@ -90,7 +106,6 @@ add_action('wp_ajax_stockx_sync_variation_price', function () {
         wp_send_json_error($e->getMessage());
     }
 });
-
 
 
 add_action('woocommerce_product_options_general_product_data', function () {
