@@ -7,18 +7,14 @@ add_action('woocommerce_product_after_variable_attributes', function($loop, $var
     $base_url = get_post_meta($product_id, '_stockx_product_base_url', true);
 
     $size = '';
-    if (method_exists($variation, 'get_attribute')) {
-        $size = $variation->get_attribute('pa_size');
-    }
-
-    if (! $size && method_exists($variation, 'get_attributes')) {
+    if (method_exists($variation, 'get_attributes')) {
         $attributes = $variation->get_attributes();
         if (!empty($attributes)) {
-            $first_value = reset($attributes);
-            if (is_array($first_value)) {
-                $size = reset($first_value);
-            } else {
-                $size = $first_value;
+            foreach ($attributes as $attr => $value) {
+                if (!empty($value)) {
+                    $size = $value;
+                    break;
+                }
             }
         }
     }
@@ -34,6 +30,9 @@ add_action('woocommerce_product_after_variable_attributes', function($loop, $var
     </div>
     <?php
 }, 10, 3);
+
+// ...rest of the code remains unchanged...
+
 
 add_action('woocommerce_product_options_general_product_data', function () {
     global $post;
