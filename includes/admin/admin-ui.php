@@ -11,7 +11,6 @@ add_action('woocommerce_product_after_variable_attributes', function($loop, $var
     <?php
 }, 10, 3);
 
-// Add "Get StockX URL" button to product edit page
 add_action('woocommerce_product_options_general_product_data', function () {
     global $post;
     echo '<div class="options_group">';
@@ -34,7 +33,6 @@ add_action('woocommerce_product_options_general_product_data', function () {
     <?php
 });
 
-// Add admin submenu to fetch URLs for all products
 add_action('admin_menu', function () {
     add_submenu_page(
         'woocommerce',
@@ -63,10 +61,9 @@ add_action('admin_menu', function () {
             </script>
             <?php
         }
-    );
+);
 });
 
-// AJAX handler: single
 add_action('wp_ajax_stockx_get_url_single', function() {
     $product_id = (int) ($_POST['product_id'] ?? 0);
     if (!$product_id) wp_send_json_error('Missing product_id');
@@ -78,16 +75,18 @@ add_action('wp_ajax_stockx_get_url_single', function() {
         $variation = wc_get_product($variation_id);
         $sku = $variation->get_sku();
         if ($sku) {
-            $slug = rawurlencode($sku);
-            $url = "https://stockx.com/{$slug}";
-            update_post_meta($variation_id, '_stockx_product_url', $url);
-            $count++;
+            $fetcher = new \StockXSync\StockXFetcher();
+            $slug = $fetcher->getSlugBySku($sku);
+            if ($slug && str_starts_with($slug, '/')) {
+                $url = "https://stockx.com" . $slug;
+                update_post_meta($variation_id, '_stockx_product_url', $url);
+                $count++;
+            }
         }
     }
     wp_send_json_success($count);
 });
 
-// AJAX handler: all products
 add_action('wp_ajax_stockx_get_urls_all', function() {
     $products = wc_get_products(['type' => 'variable', 'limit' => -1]);
     $count = 0;
@@ -96,10 +95,13 @@ add_action('wp_ajax_stockx_get_urls_all', function() {
             $variation = wc_get_product($variation_id);
             $sku = $variation->get_sku();
             if ($sku) {
-                $slug = rawurlencode($sku);
-                $url = "https://stockx.com/{$slug}";
-                update_post_meta($variation_id, '_stockx_product_url', $url);
-                $count++;
+                $fetcher = new \StockXSync\StockXFetcher();
+                $slug = $fetcher->getSlugBySku($sku);
+                if ($slug && str_starts_with($slug, '/')) {
+                    $url = "https://stockx.com" . $slug;
+                    update_post_meta($variation_id, '_stockx_product_url', $url);
+                    $count++;
+                }
             }
         }
     }
