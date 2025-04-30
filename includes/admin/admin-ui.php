@@ -5,16 +5,25 @@ namespace StockXSync;
 add_action('woocommerce_product_after_variable_attributes', function($loop, $variation_data, $variation) {
     $product_id = wp_get_post_parent_id($variation->ID);
     $base_url = get_post_meta($product_id, '_stockx_product_base_url', true);
-    $size = $variation->get_attribute('pa_size');
 
-    if (! $size) {
+    $size = '';
+    if (method_exists($variation, 'get_attribute')) {
+        $size = $variation->get_attribute('pa_size');
+    }
+
+    if (! $size && method_exists($variation, 'get_attributes')) {
         $attributes = $variation->get_attributes();
         if (!empty($attributes)) {
-            $size = reset($attributes); // use the first attribute value
+            $first_value = reset($attributes);
+            if (is_array($first_value)) {
+                $size = reset($first_value);
+            } else {
+                $size = $first_value;
+            }
         }
     }
 
-    $variation_url = ($base_url && $size) ? $base_url . '?catchallFilters=' . basename($base_url) . '&size=' . $size : get_post_meta($variation->ID, '_stockx_product_url', true);
+    $variation_url = ($base_url && $size) ? $base_url . '?catchallFilters=' . basename($base_url) . '&size=' . urlencode($size) : get_post_meta($variation->ID, '_stockx_product_url', true);
     ?>
     <div class="stockx-sync-row">
         <label><?php _e('StockX URL:', 'stockx-sync'); ?></label>
