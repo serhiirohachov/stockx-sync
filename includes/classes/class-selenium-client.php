@@ -21,7 +21,7 @@ class SeleniumClient extends BaseSelenium {
             throw new \Exception("Timeout loading page at {$url}");
         }
 
-        $priceSelector = 'h2[data-testid="trade-box-buy-amount"]';
+        $priceSelector = 'h2.chakra-heading[data-testid="trade-box-buy-amount"]';
 
         try {
             $el = $this->driver->wait(20, 200)->until(
