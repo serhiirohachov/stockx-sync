@@ -1,51 +1,46 @@
 <?php
 /**
  * Plugin Name:       StockX Price Sync
- * Plugin URI:        https://example.com/stockx-sync
  * Description:       Sync out-of-stock variation prices from StockX via Selenium scraping.
- * Version:           1.0.9
+ * Version:           1.1.0
  * Author:            Serhii Rohachov
- * Author URI:        https://example.com
  * Text Domain:       stockx-sync
  */
 
 namespace StockXSync;
 
-if ( ! defined( 'ABSPATH' ) ) {
-    exit;
-}
+if (!defined('ABSPATH')) exit;
 
-if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
+// Autoload
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
 }
 
-// Classes (в правильному порядку)
-require_once __DIR__ . '/includes/classes/class-plugin.php';
-require_once __DIR__ . '/includes/classes/class-settings.php';
-require_once __DIR__ . '/includes/classes/class-scheduler.php';
-require_once __DIR__ . '/includes/classes/class-admin-page.php';
-require_once __DIR__ . '/includes/classes/class-sync-manager.php';
-require_once __DIR__ . '/includes/classes/class-base-selenium.php';       // 🔑 обов'язково перед selenium-client
-require_once __DIR__ . '/includes/classes/class-selenium-client.php';
-require_once __DIR__ . '/includes/classes/class-stockx-fetcher.php';
-
-// Admin UI
+// Classes
+$includes = [
+    'class-plugin', 'class-2captcha-client', 'class-settings', 'class-scheduler',
+    'class-admin-page', 'class-sync-manager', 'class-base-selenium',
+    'class-selenium-client', 'class-stockx-fetcher', 'class-size-mapper'
+];
+foreach ($includes as $file) {
+    require_once __DIR__ . "/includes/classes/{$file}.php";
+}
+require_once __DIR__ . '/includes/functions/stockx-utils.php';
 require_once __DIR__ . '/includes/admin/admin-ui.php';
 
-// WP-CLI
-if ( defined( 'WP_CLI' ) && WP_CLI ) {
+// CLI
+if (defined('WP_CLI') && WP_CLI) {
     require_once __DIR__ . '/includes/cli/class-cli.php';
-    \StockXSync\CLI::init();
+    \StockXSync\CLI_Sync::register(); // або ::init(), якщо ти так назвав метод
 }
 
+// Hooks
+register_activation_hook(__FILE__, [Plugin::class, 'activate']);
+register_deactivation_hook(__FILE__, [Plugin::class, 'deactivate']);
 
-register_activation_hook( __FILE__, [ 'StockXSync\\Plugin', 'activate' ] );
-register_deactivation_hook( __FILE__, [ 'StockXSync\\Plugin', 'deactivate' ] );
-
-register_activation_hook( __FILE__, function() {
-    if (!file_exists(WP_CONTENT_DIR . '/stockx-sync-log.txt')) {
-        file_put_contents(WP_CONTENT_DIR . '/stockx-sync-log.txt', '');
-    }
+register_activation_hook(__FILE__, function () {
+    $log = WP_CONTENT_DIR . '/stockx-sync-log.txt';
+    if (!file_exists($log)) file_put_contents($log, '');
 });
 
-add_action( 'plugins_loaded', [ 'StockXSync\\Plugin', 'init' ] );
+add_action('plugins_loaded', [Plugin::class, 'init'], 10);

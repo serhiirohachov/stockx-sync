@@ -1,0 +1,17 @@
+{
+  "name": "stockx-sync",
+  "version": "1.0.0",
+  "description": "This WordPress plugin syncs out-of-stock WooCommerce variation prices with StockX using Selenium WebDriver scraping.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "puppeteer": "^24.9.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}

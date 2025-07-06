@@ -1,1 +1,0 @@
-Run `composer install` to install required dependencies.

@@ -1,15 +1,15 @@
 {
-    "name": "stockx/sync",
-    "description": "StockX WooCommerce Sync Plugin",
-    "type": "wordpress-plugin",
+    "name": "root/stockx-sync",
     "autoload": {
         "psr-4": {
-            "StockXSync\\": "includes/classes/",
-            "StockXSync\\CLI\\": "includes/cli/"
+            "Root\\StockxSync\\": "src/"
         }
     },
     "require": {
-        "php": ">=7.4",
-        "facebook/webdriver": "^1.11"
+        "guzzlehttp/guzzle": "^7.9",
+        "php-webdriver/webdriver": "^1.15",
+        "facebook/webdriver": "*",
+        "2captcha/2captcha": "^1.2"
+
     }
 }
